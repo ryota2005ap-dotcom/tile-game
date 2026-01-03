@@ -3,14 +3,13 @@
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no">
-    <title>Monochrome Center: Evolved (v2.3)</title>
+    <title>Jump Reversi</title>
     <style>
         :root {
             --bg-color: #f0f2f5;
             --board-bg: #e0e0e0;
             --cell-bg: #ccc;
             --text-color: #333;
-            --accent-color: #333;
             --highlight-color: #d32f2f; /* 赤枠用 */
             --tile-white: #ffffff;
             --tile-black: #222222;
@@ -51,9 +50,11 @@
         }
 
         h1 {
-            font-size: 1.2rem;
+            font-size: 1.5rem;
             margin: 0 0 10px 0;
             letter-spacing: 1px;
+            font-weight: 800;
+            color: #222;
         }
 
         .nav-container {
@@ -106,6 +107,14 @@
             color: var(--highlight-color);
         }
 
+        .seed-link {
+            color: #007bff;
+            text-decoration: underline;
+            cursor: pointer;
+            font-weight: bold;
+            margin-left: 5px;
+        }
+
         /* --- Game Board --- */
         #game-board {
             display: grid;
@@ -116,7 +125,7 @@
             box-shadow: 0 8px 16px rgba(0,0,0,0.1);
             position: relative;
             margin-bottom: 20px;
-            touch-action: none; /* 盤面操作時のみスクロール無効 */
+            touch-action: none;
         }
 
         .cell {
@@ -127,23 +136,12 @@
             position: relative;
         }
 
-        /* ゴールマスのスタイル */
+        /* ゴールマスの枠 */
         .cell.goal {
             border: 3px solid var(--highlight-color);
             background-color: rgba(211, 47, 47, 0.1);
         }
         
-        .cell.goal::after {
-            content: 'GOAL';
-            position: absolute;
-            top: -15px;
-            left: 50%;
-            transform: translateX(-50%);
-            font-size: 0.6rem;
-            color: var(--highlight-color);
-            font-weight: bold;
-        }
-
         /* タイル */
         .tile {
             width: 100%;
@@ -157,10 +155,10 @@
             transition: transform 0.2s ease, opacity 0.2s;
             box-shadow: 0 4px 6px rgba(0,0,0,0.2);
             display: flex;
+            flex-direction: column;
             justify-content: center;
             align-items: center;
             font-weight: bold;
-            font-size: 1.2rem;
             touch-action: none;
         }
 
@@ -176,8 +174,30 @@
             color: var(--tile-white);
         }
 
+        /* ゴール上のタイルに表示するGOAL文字 */
+        .tile-goal-text {
+            font-size: 0.7rem;
+            line-height: 1;
+            margin-bottom: 2px;
+            opacity: 0.8;
+        }
+        
+        .tile-score {
+            font-size: 1.1rem;
+            line-height: 1;
+        }
+
         .tile:active {
             cursor: grabbing;
+        }
+
+        /* ロックされたタイル（ゴール上） */
+        .tile.locked {
+            cursor: not-allowed;
+        }
+        .tile.locked:active {
+            cursor: not-allowed;
+            transform: none;
         }
 
         .tile.dragging {
@@ -322,7 +342,7 @@
 <body>
 
     <header>
-        <h1>Monochrome Center: Evolved</h1>
+        <h1>Jump Reversi</h1>
         <div class="nav-container">
             <button class="nav-btn" id="btn-st1" onclick="game.loadStage(1)">Tutorial</button>
             <button class="nav-btn" id="btn-st2" onclick="game.loadStage(2)">Standard</button>
@@ -345,7 +365,7 @@
     </div>
 
     <div id="seed-container">
-        <div>Seed: <strong id="current-seed-display"></strong></div>
+        <div>Current Seed: <strong id="current-seed-display"></strong></div>
         <div class="seed-input-group">
             <input type="text" id="seed-input" placeholder="Seed" maxlength="10">
             <button id="load-seed-btn" onclick="game.loadSeed()">Load</button>
@@ -413,11 +433,7 @@
                 this.dragGhost = null;
 
                 // Bind events
-                this.bindEvents();
-            }
-
-            bindEvents() {
-                // DnDはタイル生成時にバインド
+                // (DnD events are bound on tile creation)
             }
 
             loadStage(stageNum) {
@@ -436,24 +452,37 @@
                 } else if (stageNum === 2) {
                     this.boardSize = 5;
                     this.infoTitle.innerText = "ST2: Standard";
-                    this.infoText.innerHTML = `5×5の標準ステージ。<br>手詰まりになったらUNDOで戻れます。`;
+                    this.infoText.innerHTML = `5×5の標準ステージ。<br>赤枠の上のコマは動かせないので、他のコマを乗せて消しましょう。`;
                     this.seedContainer.style.display = 'none';
                     this.goalPos = { r: 2, c: 2 };
                 } else if (stageNum === 3) {
                     this.boardSize = 5;
                     this.infoTitle.innerText = "ST3: Score Attack";
-                    const highScore = localStorage.getItem('mono_ace_highscore') || 0;
-                    this.infoText.innerHTML = `
-                        <b>High Score: ${highScore}</b><br>
-                        <span style="font-size:0.8rem">1枚のタイルを連続で動かしてゴールしよう！<br>「捕食した数」がスコアになります。</span>
-                    `;
+                    
+                    const highScore = localStorage.getItem('jr_highscore') || 0;
+                    const highSeed = localStorage.getItem('jr_highseed') || null;
+                    
+                    let highScoreHTML = `<b>High Score: ${highScore}</b>`;
+                    if (highSeed) {
+                        highScoreHTML += `<br><span style="font-size:0.9rem">Record Seed: <span class="seed-link" onclick="game.forceLoadSeed(${highSeed})">${highSeed}</span></span>`;
+                    }
+                    highScoreHTML += `<br><span style="font-size:0.8rem">1枚のタイルで連続捕食してハイスコアを目指そう！</span>`;
+                    
+                    this.infoText.innerHTML = highScoreHTML;
                     this.seedContainer.style.display = 'block';
                 }
 
+                // ST3は毎回ランダムシード、他は固定でも良いが今回はランダム生成
                 this.currentSeed = Math.floor(Math.random() * 1000000);
                 if(stageNum === 3) this.seedDisplay.innerText = this.currentSeed;
 
                 this.reset();
+            }
+
+            // ハイスコア時のシード読み込み用
+            forceLoadSeed(seed) {
+                this.seedInput.value = seed;
+                this.loadSeed();
             }
 
             reset() {
@@ -499,13 +528,12 @@
                 }
             }
 
-            // タイルの生成ロジックを修正：白黒の個数差を1にする
             generateBoardData() {
                 this.boardData = [];
                 const totalCells = this.boardSize * this.boardSize;
                 const half = Math.floor(totalCells / 2);
                 
-                // どちらの色を多くするかランダムに決める
+                // どちらの色を多くするかランダムに決める（差を1にする）
                 const moreWhite = this.rng.next() > 0.5;
                 const whiteCount = moreWhite ? half + 1 : half;
                 const blackCount = moreWhite ? half : half + 1;
@@ -515,7 +543,7 @@
                 for (let i = 0; i < whiteCount; i++) colors.push('white');
                 for (let i = 0; i < blackCount; i++) colors.push('black');
 
-                // シャッフル (Fisher-Yates)
+                // シャッフル
                 for (let i = colors.length - 1; i > 0; i--) {
                     const j = this.rng.nextInt(0, i);
                     [colors[i], colors[j]] = [colors[j], colors[i]];
@@ -558,13 +586,31 @@
                             tile.dataset.r = r;
                             tile.dataset.c = c;
                             
-                            if (this.currentStage === 3 && tileData.count > 0) {
-                                tile.textContent = tileData.count;
-                            } else {
-                                tile.textContent = '';
+                            // コンテンツのラッパー作成
+                            // ゴール上なら「GOAL」表示
+                            if (r === this.goalPos.r && c === this.goalPos.c) {
+                                const goalText = document.createElement('div');
+                                goalText.className = 'tile-goal-text';
+                                goalText.innerText = "GOAL";
+                                tile.appendChild(goalText);
+                                
+                                // ゴール上のコマはロック（移動不可）
+                                tile.classList.add('locked');
                             }
                             
-                            tile.addEventListener('pointerdown', (e) => this.onPointerDown(e));
+                            // スコア表示 (ST3)
+                            if (this.currentStage === 3 && tileData.count > 0) {
+                                const scoreSpan = document.createElement('span');
+                                scoreSpan.className = 'tile-score';
+                                scoreSpan.innerText = tileData.count;
+                                tile.appendChild(scoreSpan);
+                            }
+                            
+                            // ロックされていなければイベント追加
+                            if (!tile.classList.contains('locked')) {
+                                tile.addEventListener('pointerdown', (e) => this.onPointerDown(e));
+                            }
+                            
                             cell.appendChild(tile);
                         }
                         this.boardEl.appendChild(cell);
@@ -582,6 +628,9 @@
                 });
             }
 
+            // 移動可否判定：ゴール上のコマは「動かせない」ので、ここに来るのは「動かそうとしているコマ」
+            // ゴール上のコマはonPointerDownで弾いているので、ここではチェック不要だが、
+            // 「移動先」としてのチェックは必要。
             isValidMove(fr, fc, toR, toC) {
                 if (toR < 0 || toR >= this.boardSize || toC < 0 || toC >= this.boardSize) return false;
                 const dist = Math.abs(fr - toR) + Math.abs(fc - toC);
@@ -602,6 +651,9 @@
 
                 for (let r = 0; r < size; r++) {
                     for (let c = 0; c < size; c++) {
+                        // ゴール上のコマは移動元になれない
+                        if (r === this.goalPos.r && c === this.goalPos.c) continue;
+
                         if (!this.boardData[r][c]) continue;
                         
                         const tile = this.boardData[r][c];
@@ -651,6 +703,7 @@
                     }
                 }
 
+                // クリア判定
                 if (tiles.length === 1) {
                     if (tilePos.r === this.goalPos.r && tilePos.c === this.goalPos.c) {
                         this.showWin(tiles[0].count);
@@ -660,6 +713,7 @@
                     return;
                 }
 
+                // 手詰まり判定
                 if (!this.checkMovesAvailable()) {
                     this.showGameOver("No more moves available!");
                 }
@@ -676,10 +730,12 @@
                 let msg = "Great Job!";
 
                 if (this.currentStage === 3) {
-                    const currentHigh = parseInt(localStorage.getItem('mono_ace_highscore') || 0);
+                    const currentHigh = parseInt(localStorage.getItem('jr_highscore') || 0);
                     let isNewRecord = false;
+                    
                     if (score > currentHigh) {
-                        localStorage.setItem('mono_ace_highscore', score);
+                        localStorage.setItem('jr_highscore', score);
+                        localStorage.setItem('jr_highseed', this.currentSeed); // シードも保存
                         isNewRecord = true;
                     }
 
@@ -729,6 +785,8 @@
 
             onPointerDown(e) {
                 const tileEl = e.currentTarget;
+                if(tileEl.classList.contains('locked')) return; // ロックされたタイルは無視
+
                 const r = parseInt(tileEl.dataset.r);
                 const c = parseInt(tileEl.dataset.c);
                 
