@@ -3,584 +3,868 @@
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no">
-    <title>Monochrome Center: Evolved</title>
-    
-    <!-- PWA設定 -->
-    <link rel="manifest" href="manifest.json">
-    <meta name="theme-color" content="#5B92E5">
-    <meta name="apple-mobile-web-app-capable" content="yes">
-    <meta name="apple-mobile-web-app-status-bar-style" content="black-translucent">
-    <meta name="apple-mobile-web-app-title" content="MonoCenter">
-    <link rel="apple-touch-icon" href="icon-192.png">
-
+    <title>Monochrome Center: Evolved (v2.1)</title>
     <style>
         :root {
-            --cell-size: 60px;
-            --gap: 8px;
-            --board-bg: #5B92E5;
-            --tile-white: #f0f0f0;
-            --tile-black: #222222;
-            --goal-border: #ff3333;
+            --bg-color: #f0f2f5;
+            --board-bg: #e0e0e0;
+            --cell-bg: #ccc;
             --text-color: #333;
+            --accent-color: #333;
+            --highlight-color: #d32f2f; /* 赤枠用 */
+            --tile-white: #ffffff;
+            --tile-black: #222222;
+            --btn-bg: #333;
+            --btn-text: #fff;
+            
+            /* グリッドサイズ計算用 (JSで上書きする場合あり) */
+            --cell-size: 60px;
+            --gap: 6px;
+        }
+
+        * {
+            box-sizing: border-box;
+            touch-action: none; /* スマホでのスクロール誤爆防止 */
         }
 
         body {
             font-family: 'Helvetica Neue', Arial, sans-serif;
-            background-color: #f4f7f6;
+            background-color: var(--bg-color);
+            color: var(--text-color);
             margin: 0;
+            padding: 0;
             display: flex;
             flex-direction: column;
             align-items: center;
             justify-content: center;
             min-height: 100vh;
-            touch-action: none;
             user-select: none;
-            -webkit-tap-highlight-color: transparent;
+        }
+
+        /* --- Header & Nav --- */
+        header {
+            width: 100%;
+            max-width: 500px;
+            padding: 10px;
+            text-align: center;
         }
 
         h1 {
-            font-size: 1.5rem;
-            color: #444;
+            font-size: 1.2rem;
+            margin: 0 0 10px 0;
+            letter-spacing: 1px;
+        }
+
+        .nav-container {
+            display: flex;
+            justify-content: center;
+            gap: 5px;
             margin-bottom: 10px;
         }
 
-        .status-bar {
-            display: flex;
-            justify-content: space-between;
-            width: 100%;
-            max-width: 340px;
-            margin-bottom: 15px;
-            font-weight: bold;
-            color: #555;
+        .nav-btn {
+            background: #fff;
+            border: 1px solid #ccc;
+            padding: 6px 12px;
+            font-size: 0.8rem;
+            border-radius: 20px;
+            cursor: pointer;
+            transition: all 0.2s;
+            color: #666;
         }
 
+        .nav-btn.active {
+            background: var(--btn-bg);
+            color: var(--btn-text);
+            border-color: var(--btn-bg);
+        }
+
+        /* --- Info Panel (Tutorial / Score) --- */
+        #info-panel {
+            background: #fff;
+            width: 90%;
+            max-width: 360px;
+            padding: 15px;
+            border-radius: 8px;
+            margin-bottom: 20px;
+            box-shadow: 0 2px 5px rgba(0,0,0,0.05);
+            text-align: center;
+            font-size: 0.9rem;
+            line-height: 1.5;
+            border-left: 4px solid var(--highlight-color);
+            min-height: 60px;
+            display: flex;
+            flex-direction: column;
+            justify-content: center;
+        }
+
+        .info-title {
+            font-weight: bold;
+            display: block;
+            margin-bottom: 5px;
+            color: var(--highlight-color);
+        }
+
+        /* --- Game Board --- */
         #game-board {
             display: grid;
-            grid-template-columns: repeat(5, var(--cell-size));
-            grid-template-rows: repeat(5, var(--cell-size));
-            gap: var(--gap);
             background-color: var(--board-bg);
             padding: var(--gap);
-            border-radius: 12px;
-            box-shadow: 0 10px 25px rgba(91, 146, 229, 0.3);
+            gap: var(--gap);
+            border-radius: 8px;
+            box-shadow: 0 8px 16px rgba(0,0,0,0.1);
             position: relative;
+            margin-bottom: 20px;
         }
 
         .cell {
             width: var(--cell-size);
             height: var(--cell-size);
-            background-color: rgba(255, 255, 255, 0.2);
-            border-radius: 8px;
+            background-color: var(--cell-bg);
+            border-radius: 50%; /* マスも少し丸く */
             position: relative;
         }
 
+        /* ゴールマスのスタイル */
         .cell.goal {
-            border: 3px solid var(--goal-border);
-            box-sizing: border-box;
+            border: 3px solid var(--highlight-color);
+            background-color: rgba(211, 47, 47, 0.1);
         }
         
         .cell.goal::after {
             content: 'GOAL';
             position: absolute;
-            top: -16px;
+            top: -15px;
             left: 50%;
             transform: translateX(-50%);
-            font-size: 10px;
-            color: var(--goal-border);
+            font-size: 0.6rem;
+            color: var(--highlight-color);
             font-weight: bold;
-            pointer-events: none;
         }
 
+        /* タイル */
         .tile {
             width: 100%;
             height: 100%;
-            border-radius: 8px;
-            display: flex;
-            justify-content: center;
-            align-items: center;
-            font-size: 1.2rem;
-            font-weight: bold;
-            cursor: grab;
+            border-radius: 50%;
             position: absolute;
             top: 0;
             left: 0;
-            transition: transform 0.2s ease, box-shadow 0.2s;
             z-index: 10;
-            touch-action: none;
+            cursor: grab;
+            transition: transform 0.2s ease, opacity 0.2s;
+            box-shadow: 0 4px 6px rgba(0,0,0,0.2);
+            display: flex;
+            justify-content: center;
+            align-items: center;
+            font-weight: bold;
+            font-size: 1.2rem;
         }
 
         .tile.white {
-            background-color: var(--tile-white);
-            color: var(--tile-black);
-            box-shadow: 0 4px 0 #cccccc;
+            background: var(--tile-white);
+            border: 2px solid #ddd;
+            color: var(--tile-black); /* 数字の色 */
         }
 
         .tile.black {
-            background-color: var(--tile-black);
-            color: var(--tile-white);
-            box-shadow: 0 4px 0 #000000;
+            background: var(--tile-black);
+            border: 2px solid #000;
+            color: var(--tile-white); /* 数字の色 */
         }
 
-        .tile:active { cursor: grabbing; }
+        .tile:active {
+            cursor: grabbing;
+        }
 
         .tile.dragging {
-            opacity: 0.8;
+            opacity: 0.7;
             z-index: 100;
             transform: scale(1.1);
-            pointer-events: none;
-        }
-        
-        .tile.ghost {
-            opacity: 0.3;
-            box-shadow: none;
+            pointer-events: none; /* ドラッグ中は下の要素判定を邪魔しない */
         }
 
+        /* --- Controls --- */
         .controls {
-            margin-top: 20px;
             display: flex;
             gap: 15px;
         }
 
-        button {
-            padding: 10px 20px;
-            font-size: 1rem;
+        .ctrl-btn {
+            background: var(--btn-bg);
+            color: var(--btn-text);
             border: none;
-            border-radius: 6px;
-            cursor: pointer;
+            padding: 12px 24px;
+            border-radius: 8px;
             font-weight: bold;
-            transition: transform 0.1s, opacity 0.2s;
+            cursor: pointer;
+            font-size: 1rem;
+            box-shadow: 0 4px 0 rgba(0,0,0,0.2);
         }
 
-        button:active { transform: translateY(2px); }
-
-        #undo-btn {
-            background-color: #f0ad4e;
-            color: white;
-            box-shadow: 0 4px 0 #d58512;
+        .ctrl-btn:active {
+            transform: translateY(2px);
+            box-shadow: 0 2px 0 rgba(0,0,0,0.2);
         }
-        
-        #undo-btn:disabled {
-            background-color: #ccc;
+
+        .ctrl-btn:disabled {
+            background: #aaa;
             box-shadow: none;
             cursor: not-allowed;
+            transform: none;
         }
 
-        #reset-btn {
-            background-color: #d9534f;
+        /* --- Seed UI (ST3 only) --- */
+        #seed-container {
+            margin-top: 30px;
+            font-size: 0.8rem;
+            color: #666;
+            display: none; /* JSで制御 */
+            text-align: center;
+        }
+
+        .seed-input-group {
+            margin-top: 5px;
+            display: flex;
+            gap: 5px;
+            justify-content: center;
+        }
+
+        #seed-input {
+            padding: 4px;
+            border: 1px solid #ccc;
+            border-radius: 4px;
+            width: 80px;
+            text-align: center;
+        }
+
+        #load-seed-btn {
+            background: #666;
             color: white;
-            box-shadow: 0 4px 0 #ac2925;
+            border: none;
+            padding: 4px 8px;
+            border-radius: 4px;
+            cursor: pointer;
         }
 
-        #message-overlay {
+        /* --- Overlay (Clear / Game Over) --- */
+        #overlay {
             position: fixed;
             top: 0;
             left: 0;
             width: 100%;
             height: 100%;
-            background: rgba(0, 0, 0, 0.6);
+            background: rgba(0,0,0,0.8);
             display: flex;
-            justify-content: center;
-            align-items: center;
             flex-direction: column;
+            align-items: center;
+            justify-content: center;
             z-index: 1000;
             visibility: hidden;
             opacity: 0;
             transition: opacity 0.3s;
         }
 
-        #message-overlay.visible {
+        #overlay.visible {
             visibility: visible;
             opacity: 1;
         }
 
-        .message-box {
+        .overlay-content {
             background: white;
             padding: 30px;
             border-radius: 12px;
             text-align: center;
-            box-shadow: 0 10px 30px rgba(0,0,0,0.3);
             max-width: 80%;
+            width: 300px;
         }
 
-        .message-box h2 {
-            margin-top: 0;
-            color: #5B92E5;
-        }
-        
-        .score-display {
-            font-size: 2rem;
+        .overlay-title {
+            font-size: 1.8rem;
+            margin-bottom: 10px;
+            color: var(--highlight-color);
             font-weight: bold;
+        }
+
+        .overlay-msg {
+            margin-bottom: 20px;
+            font-size: 1rem;
             color: #333;
-            margin: 20px 0;
         }
 
-        .retry-btn {
-            background-color: #5B92E5;
+        .overlay-btn {
+            background: var(--highlight-color);
             color: white;
-            box-shadow: 0 4px 0 #3a6ab5;
-            padding: 12px 30px;
-            font-size: 1.1rem;
+            border: none;
+            padding: 12px 24px;
+            font-size: 1rem;
+            border-radius: 6px;
+            cursor: pointer;
+            width: 100%;
         }
 
-        /* インストール促進バナー（最初は隠す） */
-        #install-prompt {
-            display: none;
-            position: fixed;
-            bottom: 20px;
-            left: 50%;
-            transform: translateX(-50%);
-            background: #333;
-            color: white;
-            padding: 12px 20px;
-            border-radius: 30px;
-            font-size: 0.9rem;
-            box-shadow: 0 4px 12px rgba(0,0,0,0.3);
-            z-index: 2000;
-            align-items: center;
-            gap: 10px;
-        }
-        #install-prompt button {
-            background: #5B92E5;
-            padding: 5px 15px;
-            font-size: 0.8rem;
-            box-shadow: none;
-            margin: 0;
-            color: white;
-            border-radius: 15px;
-        }
-
+        /* レスポンシブ調整 */
         @media (max-width: 400px) {
             :root {
-                --cell-size: 13vw;
-                --gap: 2vw;
+                --cell-size: 16vw;
             }
         }
     </style>
 </head>
 <body>
 
-    <h1>Monochrome Center</h1>
-    <div class="status-bar">
-        <span>ST2: Standard</span>
-        <span>Goal: Center</span>
+    <header>
+        <h1>Monochrome Center: Evolved</h1>
+        <div class="nav-container">
+            <button class="nav-btn" id="btn-st1" onclick="game.loadStage(1)">Tutorial</button>
+            <button class="nav-btn" id="btn-st2" onclick="game.loadStage(2)">Standard</button>
+            <button class="nav-btn" id="btn-st3" onclick="game.loadStage(3)">Score Attack</button>
+        </div>
+    </header>
+
+    <div id="info-panel">
+        <!-- JSで動的に書き換わります -->
+        <span class="info-title">Welcome</span>
+        <span id="info-text">Loading...</span>
     </div>
 
-    <div id="game-board"></div>
+    <div id="game-board">
+        <!-- JSで生成 -->
+    </div>
 
     <div class="controls">
-        <button id="undo-btn" disabled>UNDO</button>
-        <button id="reset-btn">RESET</button>
+        <button id="undo-btn" class="ctrl-btn" disabled onclick="game.undo()">UNDO</button>
+        <button id="reset-btn" class="ctrl-btn" onclick="game.reset()">RESET</button>
     </div>
 
-    <div id="message-overlay">
-        <div class="message-box">
-            <h2>STAGE CLEAR!</h2>
-            <p>Ace Score (Moves):</p>
-            <div class="score-display" id="final-score">0</div>
-            <button class="retry-btn" id="retry-btn">New Game</button>
+    <div id="seed-container">
+        <div>Seed: <strong id="current-seed-display"></strong></div>
+        <div class="seed-input-group">
+            <input type="text" id="seed-input" placeholder="Seed" maxlength="10">
+            <button id="load-seed-btn" onclick="game.loadSeed()">Load</button>
         </div>
     </div>
 
-    <!-- インストールボタン -->
-    <div id="install-prompt">
-        アプリとしてインストール
-        <button id="install-btn">追加</button>
+    <!-- オーバーレイ（クリア/ゲームオーバー） -->
+    <div id="overlay">
+        <div class="overlay-content">
+            <div class="overlay-title" id="overlay-title">CLEAR!</div>
+            <div class="overlay-msg" id="overlay-msg"></div>
+            <button class="overlay-btn" id="overlay-btn" onclick="game.nextAction()">Next Stage</button>
+        </div>
     </div>
 
     <script>
-        // --- PWA設定 ---
-        if ('serviceWorker' in navigator) {
-            window.addEventListener('load', () => {
-                navigator.serviceWorker.register('./service-worker.js')
-                    .then(reg => console.log('SW registered!', reg))
-                    .catch(err => console.log('SW failed', err));
-            });
+        /**
+         * シード付き乱数生成クラス (Mulberry32 Algorithm)
+         */
+        class Random {
+            constructor(seed) {
+                this.seed = seed;
+                this.state = seed;
+            }
+            
+            // 0以上1未満の乱数を返す
+            next() {
+                var t = this.state += 0x6D2B79F5;
+                t = Math.imul(t ^ t >>> 15, t | 1);
+                t ^= t + Math.imul(t ^ t >>> 7, t | 61);
+                return ((t ^ t >>> 14) >>> 0) / 4294967296;
+            }
+
+            // 整数を返す用
+            nextInt(min, max) {
+                return Math.floor(this.next() * (max - min + 1)) + min;
+            }
         }
 
-        // インストールバナー表示ロジック
-        let deferredPrompt;
-        const installPrompt = document.getElementById('install-prompt');
-        const installBtn = document.getElementById('install-btn');
+        /**
+         * ゲームメインクラス
+         */
+        class Game {
+            constructor() {
+                this.currentStage = 1;
+                this.boardSize = 3;
+                this.boardData = []; // 2D Array
+                this.history = [];   // Undo Stack
+                this.goalPos = { r: 1, c: 1 };
+                this.rng = new Random(12345);
+                this.currentSeed = 12345;
+                
+                // DOM Elements
+                this.boardEl = document.getElementById('game-board');
+                this.infoTitle = document.querySelector('.info-title');
+                this.infoText = document.getElementById('info-text');
+                this.undoBtn = document.getElementById('undo-btn');
+                this.seedContainer = document.getElementById('seed-container');
+                this.seedDisplay = document.getElementById('current-seed-display');
+                this.seedInput = document.getElementById('seed-input');
+                this.overlay = document.getElementById('overlay');
+                
+                // DnD State
+                this.isDragging = false;
+                this.dragTile = null;
+                this.dragSource = null;
+                this.dragGhost = null;
 
-        window.addEventListener('beforeinstallprompt', (e) => {
-            e.preventDefault();
-            deferredPrompt = e;
-            installPrompt.style.display = 'flex'; // バナーを表示
-        });
+                // Bind events
+                this.bindEvents();
+            }
 
-        installBtn.addEventListener('click', (e) => {
-            installPrompt.style.display = 'none';
-            if (deferredPrompt) {
-                deferredPrompt.prompt();
-                deferredPrompt.userChoice.then((choiceResult) => {
-                    if (choiceResult.outcome === 'accepted') {
-                        console.log('User accepted the install prompt');
+            bindEvents() {
+                // DnDはタイル生成時にバインド
+            }
+
+            /**
+             * ステージロード処理
+             */
+            loadStage(stageNum) {
+                this.currentStage = stageNum;
+                this.updateNavButtons();
+                
+                // ステージごとの設定
+                if (stageNum === 1) {
+                    this.boardSize = 3;
+                    this.infoTitle.innerText = "ST1: Tutorial";
+                    this.infoText.innerHTML = `
+                        <b>ルール:</b> タイルは<span style="color:red">『異なる色』</span>の上にだけ移動できます。<br>
+                        <b>ゴール:</b> 重ねて消して、最後の1枚を<span style="color:red">『赤枠』</span>に残せばクリア！
+                    `;
+                    this.seedContainer.style.display = 'none';
+                    this.goalPos = { r: 1, c: 1 };
+                } else if (stageNum === 2) {
+                    this.boardSize = 5;
+                    this.infoTitle.innerText = "ST2: Standard";
+                    this.infoText.innerHTML = `5×5の標準ステージ。<br>手詰まりになったらUNDOで戻れます。`;
+                    this.seedContainer.style.display = 'none';
+                    this.goalPos = { r: 2, c: 2 };
+                } else if (stageNum === 3) {
+                    this.boardSize = 5;
+                    this.infoTitle.innerText = "ST3: Score Attack";
+                    const highScore = localStorage.getItem('mono_ace_highscore') || 0;
+                    this.infoText.innerHTML = `
+                        <b>High Score: ${highScore}</b><br>
+                        <span style="font-size:0.8rem">1枚のタイルを連続で動かしてゴールしよう！<br>「捕食した数」がスコアになります。</span>
+                    `;
+                    this.seedContainer.style.display = 'block';
+                }
+
+                // 新しいシードを生成（ST3以外は固定シードでも良いが、毎回ランダムにする）
+                this.currentSeed = Math.floor(Math.random() * 1000000);
+                if(stageNum === 3) this.seedDisplay.innerText = this.currentSeed;
+
+                this.reset();
+            }
+
+            /**
+             * 盤面リセット・再生成
+             */
+            reset() {
+                this.history = [];
+                this.undoBtn.disabled = true;
+                this.overlay.classList.remove('visible');
+                
+                // RNG初期化
+                this.rng = new Random(this.currentSeed);
+
+                // ST3のランダムゴール設定
+                if (this.currentStage === 3) {
+                    this.goalPos = {
+                        r: this.rng.nextInt(0, 4),
+                        c: this.rng.nextInt(0, 4)
+                    };
+                }
+
+                // 有効な盤面ができるまで生成（手詰まりスタート防止）
+                let isValid = false;
+                let attempts = 0;
+                while (!isValid && attempts < 100) {
+                    this.generateBoardData();
+                    if (this.checkMovesAvailable()) {
+                        isValid = true;
+                    } else {
+                        // シードを少しずらして再試行
+                        this.rng = new Random(this.currentSeed + attempts + 1);
                     }
-                    deferredPrompt = null;
+                    attempts++;
+                }
+
+                this.renderBoard();
+            }
+
+            /**
+             * シードを指定してロード (ST3用)
+             */
+            loadSeed() {
+                const inputVal = this.seedInput.value;
+                if (!inputVal) return;
+                
+                const seedNum = parseInt(inputVal);
+                if (!isNaN(seedNum)) {
+                    this.currentSeed = seedNum;
+                    this.seedDisplay.innerText = seedNum;
+                    this.reset();
+                } else {
+                    alert("数字を入力してください");
+                }
+            }
+
+            /**
+             * 盤面データの生成
+             */
+            generateBoardData() {
+                this.boardData = [];
+                for (let r = 0; r < this.boardSize; r++) {
+                    const row = [];
+                    for (let c = 0; c < this.boardSize; c++) {
+                        // ランダムに白黒配置
+                        const isWhite = this.rng.next() > 0.5;
+                        row.push({
+                            color: isWhite ? 'white' : 'black',
+                            id: `t-${r}-${c}`,
+                            count: 0 // 捕食回数（ST3用）
+                        });
+                    }
+                    this.boardData.push(row);
+                }
+            }
+
+            /**
+             * DOM描画
+             */
+            renderBoard() {
+                this.boardEl.innerHTML = '';
+                this.boardEl.style.gridTemplateColumns = `repeat(${this.boardSize}, var(--cell-size))`;
+
+                for (let r = 0; r < this.boardSize; r++) {
+                    for (let c = 0; c < this.boardSize; c++) {
+                        const cell = document.createElement('div');
+                        cell.classList.add('cell');
+                        cell.dataset.r = r;
+                        cell.dataset.c = c;
+
+                        // ゴール表示
+                        if (r === this.goalPos.r && c === this.goalPos.c) {
+                            cell.classList.add('goal');
+                        }
+
+                        // タイル表示
+                        const tileData = this.boardData[r][c];
+                        if (tileData) {
+                            const tile = document.createElement('div');
+                            tile.classList.add('tile', tileData.color);
+                            tile.dataset.r = r;
+                            tile.dataset.c = c;
+                            
+                            // ST3でカウントが1以上なら表示
+                            if (this.currentStage === 3 && tileData.count > 0) {
+                                tile.textContent = tileData.count;
+                            } else {
+                                tile.textContent = '';
+                            }
+                            
+                            // Pointer Events setup
+                            tile.addEventListener('pointerdown', (e) => this.onPointerDown(e));
+                            
+                            cell.appendChild(tile);
+                        }
+
+                        this.boardEl.appendChild(cell);
+                    }
+                }
+            }
+
+            /**
+             * ナビゲーションボタンの表示更新
+             */
+            updateNavButtons() {
+                document.querySelectorAll('.nav-btn').forEach((btn, idx) => {
+                    if (idx + 1 === this.currentStage) {
+                        btn.classList.add('active');
+                    } else {
+                        btn.classList.remove('active');
+                    }
                 });
             }
-        });
 
-        // --- ゲームロジック ---
-        const BOARD_SIZE = 5;
-        const GOAL_POS = { r: 2, c: 2 };
-        
-        let board = []; 
-        let history = []; 
-        let isDragging = false;
-        let dragTile = null;
-        let dragSource = null;
-        let dragGhost = null;
-        let uniqueIdCounter = 0;
+            // --- Game Logic ---
 
-        const boardEl = document.getElementById('game-board');
-        const undoBtn = document.getElementById('undo-btn');
-        const resetBtn = document.getElementById('reset-btn');
-        const overlay = document.getElementById('message-overlay');
-        const finalScoreEl = document.getElementById('final-score');
-        const retryBtn = document.getElementById('retry-btn');
+            /**
+             * 移動可能判定
+             */
+            isValidMove(fr, fc, toR, toC) {
+                // 範囲外
+                if (toR < 0 || toR >= this.boardSize || toC < 0 || toC >= this.boardSize) return false;
+                
+                // 距離が1以外（斜めや遠くはNG）
+                const dist = Math.abs(fr - toR) + Math.abs(fc - toC);
+                if (dist !== 1) return false;
 
-        function initGame() {
-            createBoard();
-            generateLevel();
-            renderBoard();
-            updateUI();
-            overlay.classList.remove('visible');
-        }
+                const target = this.boardData[toR][toC];
+                const source = this.boardData[fr][fc];
 
-        function createBoard() {
-            boardEl.innerHTML = '';
-            for (let r = 0; r < BOARD_SIZE; r++) {
-                for (let c = 0; c < BOARD_SIZE; c++) {
-                    const cell = document.createElement('div');
-                    cell.classList.add('cell');
-                    cell.dataset.r = r;
-                    cell.dataset.c = c;
-                    if (r === GOAL_POS.r && c === GOAL_POS.c) {
-                        cell.classList.add('goal');
-                    }
-                    boardEl.appendChild(cell);
+                // 移動先にタイルがあり、かつ色が違う場合のみOK
+                if (target && target.color !== source.color) {
+                    return true;
                 }
-            }
-        }
 
-        function generateLevel() {
-            history = [];
-            board = [];
-            uniqueIdCounter = 0;
-            let valid = false;
-            while (!valid) {
-                for (let r = 0; r < BOARD_SIZE; r++) {
-                    board[r] = [];
-                    for (let c = 0; c < BOARD_SIZE; c++) {
-                        const isWhite = Math.random() > 0.5;
-                        board[r][c] = {
-                            color: isWhite ? 'white' : 'black',
-                            id: uniqueIdCounter++,
-                            count: 0
-                        };
-                    }
-                }
-                valid = hasAnyMove();
+                return false;
             }
-        }
 
-        function hasAnyMove() {
-            for (let r = 0; r < BOARD_SIZE; r++) {
-                for (let c = 0; c < BOARD_SIZE; c++) {
-                    const tile = board[r][c];
-                    if (!tile) continue;
-                    const dirs = [[0, 1], [0, -1], [1, 0], [-1, 0]];
-                    for (let d of dirs) {
-                        const nr = r + d[0];
-                        const nc = c + d[1];
-                        if (isValidPos(nr, nc)) {
-                            const target = board[nr][nc];
-                            if (target && target.color !== tile.color) {
-                                return true;
+            /**
+             * 手詰まり判定
+             */
+            checkMovesAvailable() {
+                const size = this.boardSize;
+                const dirs = [[0, 1], [0, -1], [1, 0], [-1, 0]];
+
+                for (let r = 0; r < size; r++) {
+                    for (let c = 0; c < size; c++) {
+                        if (!this.boardData[r][c]) continue;
+                        
+                        const tile = this.boardData[r][c];
+                        for (let d of dirs) {
+                            const nr = r + d[0];
+                            const nc = c + d[1];
+                            if (nr >= 0 && nr < size && nc >= 0 && nc < size) {
+                                const target = this.boardData[nr][nc];
+                                if (target && target.color !== tile.color) return true;
                             }
                         }
                     }
                 }
+                return false;
             }
-            return false;
-        }
 
-        function isValidPos(r, c) {
-            return r >= 0 && r < BOARD_SIZE && c >= 0 && c < BOARD_SIZE;
-        }
+            /**
+             * 移動実行
+             */
+            moveTile(fr, fc, toR, toC) {
+                // 履歴保存 (Deep Copy)
+                this.history.push(JSON.parse(JSON.stringify(this.boardData)));
+                this.undoBtn.disabled = false;
 
-        function renderBoard() {
-            const cells = document.querySelectorAll('.cell');
-            cells.forEach(cell => {
-                const existingTile = cell.querySelector('.tile');
-                if (existingTile) existingTile.remove();
-            });
+                // 捕食カウント加算
+                this.boardData[fr][fc].count += 1;
 
-            for (let r = 0; r < BOARD_SIZE; r++) {
-                for (let c = 0; c < BOARD_SIZE; c++) {
-                    const tileData = board[r][c];
-                    if (tileData) {
-                        const cellIndex = r * BOARD_SIZE + c;
-                        const cell = cells[cellIndex];
-                        const tileEl = document.createElement('div');
-                        tileEl.classList.add('tile', tileData.color);
-                        tileEl.textContent = tileData.count; 
-                        tileEl.dataset.r = r;
-                        tileEl.dataset.c = c;
-                        tileEl.dataset.id = tileData.id;
-                        tileEl.addEventListener('pointerdown', onPointerDown);
-                        cell.appendChild(tileEl);
+                // データ更新
+                this.boardData[toR][toC] = this.boardData[fr][fc];
+                this.boardData[fr][fc] = null;
+
+                // 再描画
+                this.renderBoard();
+
+                // 判定
+                this.checkStatus();
+            }
+
+            undo() {
+                if (this.history.length === 0) return;
+                this.boardData = this.history.pop();
+                if (this.history.length === 0) this.undoBtn.disabled = true;
+                this.renderBoard();
+                this.overlay.classList.remove('visible'); // ゲームオーバー等から復帰
+            }
+
+            /**
+             * 勝利・敗北判定
+             */
+            checkStatus() {
+                let tiles = [];
+                let tilePos = null;
+
+                for (let r = 0; r < this.boardSize; r++) {
+                    for (let c = 0; c < this.boardSize; c++) {
+                        if (this.boardData[r][c]) {
+                            tiles.push(this.boardData[r][c]);
+                            tilePos = { r, c };
+                        }
                     }
                 }
-            }
-        }
 
-        function onPointerDown(e) {
-            if (isDragging) return;
-            const tileEl = e.currentTarget;
-            const r = parseInt(tileEl.dataset.r);
-            const c = parseInt(tileEl.dataset.c);
-            if (!canMoveFrom(r, c)) return;
+                // クリア判定
+                if (tiles.length === 1) {
+                    if (tilePos.r === this.goalPos.r && tilePos.c === this.goalPos.c) {
+                        this.showWin(tiles[0].count);
+                    } else {
+                        // 1枚残ったがゴールではない -> 手詰まり扱い
+                        this.showGameOver("Last tile is not on the Goal!");
+                    }
+                    return;
+                }
 
-            isDragging = true;
-            dragSource = { r, c };
-            tileEl.setPointerCapture(e.pointerId);
-            dragTile = tileEl;
-            dragTile.classList.add('dragging');
-
-            const cell = tileEl.parentElement;
-            dragGhost = tileEl.cloneNode(true);
-            dragGhost.classList.remove('dragging');
-            dragGhost.classList.add('ghost');
-            cell.appendChild(dragGhost);
-
-            tileEl.addEventListener('pointermove', onPointerMove);
-            tileEl.addEventListener('pointerup', onPointerUp);
-            tileEl.addEventListener('pointercancel', onPointerCancel);
-        }
-
-        function onPointerMove(e) {
-            if (!isDragging || !dragTile) return;
-            e.preventDefault();
-            const cellRect = dragGhost.parentElement.getBoundingClientRect();
-            const centerX = cellRect.left + cellRect.width / 2;
-            const centerY = cellRect.top + cellRect.height / 2;
-            const dx = e.clientX - centerX;
-            const dy = e.clientY - centerY;
-            dragTile.style.transform = `translate(${dx}px, ${dy}px) scale(1.1)`;
-        }
-
-        function onPointerUp(e) {
-            if (!isDragging) return;
-            const dropTarget = document.elementFromPoint(e.clientX, e.clientY);
-            let targetCell = dropTarget ? dropTarget.closest('.cell') : null;
-            let success = false;
-            if (targetCell) {
-                const targetR = parseInt(targetCell.dataset.r);
-                const targetC = parseInt(targetCell.dataset.c);
-                if (isValidMove(dragSource.r, dragSource.c, targetR, targetC)) {
-                    executeMove(dragSource.r, dragSource.c, targetR, targetC);
-                    success = true;
+                // 手詰まり判定
+                if (!this.checkMovesAvailable()) {
+                    this.showGameOver("No more moves available!");
                 }
             }
-            cleanupDrag(success);
-        }
 
-        function onPointerCancel(e) { cleanupDrag(false); }
+            showWin(score) {
+                const overlayTitle = document.getElementById('overlay-title');
+                const overlayMsg = document.getElementById('overlay-msg');
+                const overlayBtn = document.getElementById('overlay-btn');
 
-        function cleanupDrag(success) {
-            if (!dragTile) return;
-            dragTile.removeEventListener('pointermove', onPointerMove);
-            dragTile.removeEventListener('pointerup', onPointerUp);
-            dragTile.removeEventListener('pointercancel', onPointerCancel);
-            dragTile.classList.remove('dragging');
-            dragTile.style.transform = '';
-            if (dragGhost) { dragGhost.remove(); dragGhost = null; }
-            isDragging = false;
-            dragTile = null;
-            dragSource = null;
-        }
+                overlayTitle.innerText = "STAGE CLEAR!";
+                overlayTitle.style.color = "#d32f2f";
+                
+                let msg = "Great Job!";
 
-        function canMoveFrom(r, c) {
-            const tile = board[r][c];
-            if (!tile) return false;
-            const dirs = [[0, 1], [0, -1], [1, 0], [-1, 0]];
-            for (let d of dirs) {
-                const nr = r + d[0];
-                const nc = c + d[1];
-                if (isValidPos(nr, nc)) {
-                    const target = board[nr][nc];
-                    if (target && target.color !== tile.color) return true;
+                if (this.currentStage === 3) {
+                    // スコアは残ったタイルのcount
+                    // ハイスコア更新
+                    const currentHigh = parseInt(localStorage.getItem('mono_ace_highscore') || 0);
+                    let isNewRecord = false;
+                    if (score > currentHigh) {
+                        localStorage.setItem('mono_ace_highscore', score);
+                        isNewRecord = true;
+                    }
+
+                    msg = `Ace Score: <b>${score}</b>`;
+                    if (isNewRecord) msg += `<br><span style="color:red; font-weight:bold;">NEW RECORD!</span>`;
+
+                    overlayBtn.innerText = "Replay (New Seed)";
+                } else {
+                    overlayBtn.innerText = "Next Stage";
+                }
+
+                overlayMsg.innerHTML = msg;
+                this.overlay.classList.add('visible');
+            }
+
+            showGameOver(reason) {
+                const overlayTitle = document.getElementById('overlay-title');
+                const overlayMsg = document.getElementById('overlay-msg');
+                const overlayBtn = document.getElementById('overlay-btn');
+
+                overlayTitle.innerText = "GAME OVER";
+                overlayTitle.style.color = "#333";
+                overlayMsg.innerText = reason;
+                overlayBtn.innerText = "Retry / Undo";
+
+                overlayBtn.onclick = () => {
+                    this.overlay.classList.remove('visible');
+                };
+
+                this.overlay.classList.add('visible');
+            }
+
+            nextAction() {
+                if (this.overlay.querySelector('#overlay-title').innerText === "GAME OVER") {
+                    this.overlay.classList.remove('visible');
+                    return;
+                }
+
+                if (this.currentStage === 1) {
+                    this.loadStage(2);
+                } else if (this.currentStage === 2) {
+                    this.loadStage(3);
+                } else {
+                    // ST3リプレイ
+                    this.loadStage(3);
                 }
             }
-            return false;
-        }
 
-        function isValidMove(fr, fc, toR, toC) {
-            const dist = Math.abs(fr - toR) + Math.abs(fc - toC);
-            if (dist !== 1) return false;
-            const target = board[toR][toC];
-            const source = board[fr][fc];
-            if (target && target.color !== source.color) return true;
-            return false;
-        }
 
-        function executeMove(fr, fc, toR, toC) {
-            saveHistory();
-            const sourceTile = board[fr][fc];
-            sourceTile.count += 1;
-            board[toR][toC] = sourceTile;
-            board[fr][fc] = null;
-            renderBoard();
-            updateUI();
-            checkWin();
-        }
+            // --- Drag and Drop (Pointer Events) ---
 
-        function saveHistory() {
-            const boardCopy = board.map(row => row.map(tile => tile ? { ...tile } : null));
-            history.push(boardCopy);
-        }
+            onPointerDown(e) {
+                const tileEl = e.currentTarget;
+                const r = parseInt(tileEl.dataset.r);
+                const c = parseInt(tileEl.dataset.c);
+                
+                this.isDragging = true;
+                this.dragSource = { r, c };
+                
+                tileEl.setPointerCapture(e.pointerId);
+                this.dragTile = tileEl;
+                this.dragTile.classList.add('dragging');
 
-        function undo() {
-            if (history.length === 0) return;
-            board = history.pop();
-            renderBoard();
-            updateUI();
-        }
+                const rect = tileEl.getBoundingClientRect();
+                this.dragOffset = {
+                    x: e.clientX - (rect.left + rect.width / 2),
+                    y: e.clientY - (rect.top + rect.height / 2)
+                };
 
-        function updateUI() {
-            undoBtn.disabled = history.length === 0;
-        }
+                this.dragTile.onpointermove = (ev) => this.onPointerMove(ev);
+                this.dragTile.onpointerup = (ev) => this.onPointerUp(ev);
+                this.dragTile.onpointercancel = (ev) => this.onPointerCancel(ev);
+            }
 
-        function checkWin() {
-            let tiles = [];
-            let tilePos = null;
-            for (let r = 0; r < BOARD_SIZE; r++) {
-                for (let c = 0; c < BOARD_SIZE; c++) {
-                    if (board[r][c]) {
-                        tiles.push(board[r][c]);
-                        tilePos = { r, c };
+            onPointerMove(e) {
+                if (!this.isDragging || !this.dragTile) return;
+                e.preventDefault();
+                
+                const cell = this.dragTile.parentElement;
+                const cellRect = cell.getBoundingClientRect();
+                const cellCenterX = cellRect.left + cellRect.width / 2;
+                const cellCenterY = cellRect.top + cellRect.height / 2;
+
+                const dx = e.clientX - cellCenterX - this.dragOffset.x;
+                const dy = e.clientY - cellCenterY - this.dragOffset.y;
+
+                this.dragTile.style.transform = `translate(${dx}px, ${dy}px) scale(1.1)`;
+            }
+
+            onPointerUp(e) {
+                if (!this.isDragging || !this.dragSource) return;
+
+                const source = { ...this.dragSource };
+
+                const dropTarget = document.elementFromPoint(e.clientX, e.clientY);
+                const targetCell = dropTarget ? dropTarget.closest('.cell') : null;
+
+                let success = false;
+                if (targetCell) {
+                    const toR = parseInt(targetCell.dataset.r);
+                    const toC = parseInt(targetCell.dataset.c);
+                    
+                    if (this.isValidMove(source.r, source.c, toR, toC)) {
+                        this.cleanupDrag(); 
+                        this.moveTile(source.r, source.c, toR, toC);
+                        success = true;
+                        return;
                     }
                 }
-            }
-            if (tiles.length === 1) {
-                if (tilePos.r === GOAL_POS.r && tilePos.c === GOAL_POS.c) {
-                    showWin(tiles[0].count);
+
+                this.cleanupDrag();
+                
+                const tile = this.boardEl.querySelector(`.tile[data-r="${source.r}"][data-c="${source.c}"]`);
+                if(tile) {
+                    tile.style.transition = "transform 0.2s";
+                    tile.style.transform = "";
                 }
             }
+
+            onPointerCancel(e) {
+                if (!this.dragSource) {
+                    this.cleanupDrag();
+                    return;
+                }
+                const r = this.dragSource.r;
+                const c = this.dragSource.c;
+                
+                this.cleanupDrag();
+                
+                const tile = this.boardEl.querySelector(`.tile[data-r="${r}"][data-c="${c}"]`);
+                if(tile) tile.style.transform = "";
+            }
+
+            cleanupDrag() {
+                if (this.dragTile) {
+                    this.dragTile.classList.remove('dragging');
+                    this.dragTile.onpointermove = null;
+                    this.dragTile.onpointerup = null;
+                    this.dragTile.onpointercancel = null;
+                }
+                this.isDragging = false;
+                this.dragTile = null;
+                this.dragSource = null;
+            }
         }
 
-        function showWin(score) {
-            finalScoreEl.textContent = score;
-            overlay.classList.add('visible');
-        }
+        const game = new Game();
+        window.onload = () => game.loadStage(1);
 
-        undoBtn.addEventListener('click', undo);
-        resetBtn.addEventListener('click', initGame);
-        retryBtn.addEventListener('click', initGame);
-
-        initGame();
     </script>
 </body>
 </html>
