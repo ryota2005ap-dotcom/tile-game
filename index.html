@@ -3,7 +3,7 @@
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no">
-    <title>Monochrome Center: Evolved (v2.1)</title>
+    <title>Monochrome Center: Evolved (v2.2)</title>
     <style>
         :root {
             --bg-color: #f0f2f5;
@@ -24,7 +24,7 @@
 
         * {
             box-sizing: border-box;
-            touch-action: none; /* スマホでのスクロール誤爆防止 */
+            /* touch-action: none; を削除しました。これで全体スクロールが可能になります */
         }
 
         body {
@@ -32,13 +32,14 @@
             background-color: var(--bg-color);
             color: var(--text-color);
             margin: 0;
-            padding: 0;
+            padding: 20px 0; /* 上下に余白を追加 */
             display: flex;
             flex-direction: column;
             align-items: center;
-            justify-content: center;
+            justify-content: flex-start; /* centerから変更し、長いコンテンツでも上から表示 */
             min-height: 100vh;
             user-select: none;
+            -webkit-tap-highlight-color: transparent;
         }
 
         /* --- Header & Nav --- */
@@ -47,6 +48,7 @@
             max-width: 500px;
             padding: 10px;
             text-align: center;
+            margin-bottom: 10px;
         }
 
         h1 {
@@ -115,13 +117,16 @@
             box-shadow: 0 8px 16px rgba(0,0,0,0.1);
             position: relative;
             margin-bottom: 20px;
+            
+            /* 重要: 盤面操作時のみスクロールを無効化 */
+            touch-action: none; 
         }
 
         .cell {
             width: var(--cell-size);
             height: var(--cell-size);
             background-color: var(--cell-bg);
-            border-radius: 50%; /* マスも少し丸く */
+            border-radius: 50%;
             position: relative;
         }
 
@@ -159,18 +164,21 @@
             align-items: center;
             font-weight: bold;
             font-size: 1.2rem;
+            
+            /* タイル自体もタッチ操作の対象としてスクロールをブロック */
+            touch-action: none;
         }
 
         .tile.white {
             background: var(--tile-white);
             border: 2px solid #ddd;
-            color: var(--tile-black); /* 数字の色 */
+            color: var(--tile-black);
         }
 
         .tile.black {
             background: var(--tile-black);
             border: 2px solid #000;
-            color: var(--tile-white); /* 数字の色 */
+            color: var(--tile-white);
         }
 
         .tile:active {
@@ -181,13 +189,14 @@
             opacity: 0.7;
             z-index: 100;
             transform: scale(1.1);
-            pointer-events: none; /* ドラッグ中は下の要素判定を邪魔しない */
+            pointer-events: none;
         }
 
         /* --- Controls --- */
         .controls {
             display: flex;
             gap: 15px;
+            margin-bottom: 30px; /* 下に余白を持たせてスクロールしやすく */
         }
 
         .ctrl-btn {
@@ -216,11 +225,12 @@
 
         /* --- Seed UI (ST3 only) --- */
         #seed-container {
-            margin-top: 30px;
+            margin-top: 10px;
             font-size: 0.8rem;
             color: #666;
-            display: none; /* JSで制御 */
+            display: none;
             text-align: center;
+            padding-bottom: 40px; /* 最下部に見切れ防止の余白 */
         }
 
         .seed-input-group {
@@ -231,20 +241,22 @@
         }
 
         #seed-input {
-            padding: 4px;
+            padding: 8px; /* 入力しやすく大きく */
             border: 1px solid #ccc;
             border-radius: 4px;
-            width: 80px;
+            width: 100px;
             text-align: center;
+            font-size: 1rem;
         }
 
         #load-seed-btn {
             background: #666;
             color: white;
             border: none;
-            padding: 4px 8px;
+            padding: 8px 12px;
             border-radius: 4px;
             cursor: pointer;
+            font-size: 0.9rem;
         }
 
         /* --- Overlay (Clear / Game Over) --- */
@@ -263,6 +275,7 @@
             visibility: hidden;
             opacity: 0;
             transition: opacity 0.3s;
+            touch-action: none; /* オーバーレイ表示中は背景スクロール禁止 */
         }
 
         #overlay.visible {
@@ -323,7 +336,6 @@
     </header>
 
     <div id="info-panel">
-        <!-- JSで動的に書き換わります -->
         <span class="info-title">Welcome</span>
         <span id="info-text">Loading...</span>
     </div>
@@ -345,7 +357,7 @@
         </div>
     </div>
 
-    <!-- オーバーレイ（クリア/ゲームオーバー） -->
+    <!-- オーバーレイ -->
     <div id="overlay">
         <div class="overlay-content">
             <div class="overlay-title" id="overlay-title">CLEAR!</div>
@@ -364,7 +376,6 @@
                 this.state = seed;
             }
             
-            // 0以上1未満の乱数を返す
             next() {
                 var t = this.state += 0x6D2B79F5;
                 t = Math.imul(t ^ t >>> 15, t | 1);
@@ -372,7 +383,6 @@
                 return ((t ^ t >>> 14) >>> 0) / 4294967296;
             }
 
-            // 整数を返す用
             nextInt(min, max) {
                 return Math.floor(this.next() * (max - min + 1)) + min;
             }
@@ -385,8 +395,8 @@
             constructor() {
                 this.currentStage = 1;
                 this.boardSize = 3;
-                this.boardData = []; // 2D Array
-                this.history = [];   // Undo Stack
+                this.boardData = [];
+                this.history = [];
                 this.goalPos = { r: 1, c: 1 };
                 this.rng = new Random(12345);
                 this.currentSeed = 12345;
@@ -415,14 +425,10 @@
                 // DnDはタイル生成時にバインド
             }
 
-            /**
-             * ステージロード処理
-             */
             loadStage(stageNum) {
                 this.currentStage = stageNum;
                 this.updateNavButtons();
                 
-                // ステージごとの設定
                 if (stageNum === 1) {
                     this.boardSize = 3;
                     this.infoTitle.innerText = "ST1: Tutorial";
@@ -449,25 +455,19 @@
                     this.seedContainer.style.display = 'block';
                 }
 
-                // 新しいシードを生成（ST3以外は固定シードでも良いが、毎回ランダムにする）
                 this.currentSeed = Math.floor(Math.random() * 1000000);
                 if(stageNum === 3) this.seedDisplay.innerText = this.currentSeed;
 
                 this.reset();
             }
 
-            /**
-             * 盤面リセット・再生成
-             */
             reset() {
                 this.history = [];
                 this.undoBtn.disabled = true;
                 this.overlay.classList.remove('visible');
                 
-                // RNG初期化
                 this.rng = new Random(this.currentSeed);
 
-                // ST3のランダムゴール設定
                 if (this.currentStage === 3) {
                     this.goalPos = {
                         r: this.rng.nextInt(0, 4),
@@ -475,7 +475,6 @@
                     };
                 }
 
-                // 有効な盤面ができるまで生成（手詰まりスタート防止）
                 let isValid = false;
                 let attempts = 0;
                 while (!isValid && attempts < 100) {
@@ -483,7 +482,6 @@
                     if (this.checkMovesAvailable()) {
                         isValid = true;
                     } else {
-                        // シードを少しずらして再試行
                         this.rng = new Random(this.currentSeed + attempts + 1);
                     }
                     attempts++;
@@ -492,9 +490,6 @@
                 this.renderBoard();
             }
 
-            /**
-             * シードを指定してロード (ST3用)
-             */
             loadSeed() {
                 const inputVal = this.seedInput.value;
                 if (!inputVal) return;
@@ -509,29 +504,22 @@
                 }
             }
 
-            /**
-             * 盤面データの生成
-             */
             generateBoardData() {
                 this.boardData = [];
                 for (let r = 0; r < this.boardSize; r++) {
                     const row = [];
                     for (let c = 0; c < this.boardSize; c++) {
-                        // ランダムに白黒配置
                         const isWhite = this.rng.next() > 0.5;
                         row.push({
                             color: isWhite ? 'white' : 'black',
                             id: `t-${r}-${c}`,
-                            count: 0 // 捕食回数（ST3用）
+                            count: 0
                         });
                     }
                     this.boardData.push(row);
                 }
             }
 
-            /**
-             * DOM描画
-             */
             renderBoard() {
                 this.boardEl.innerHTML = '';
                 this.boardEl.style.gridTemplateColumns = `repeat(${this.boardSize}, var(--cell-size))`;
@@ -543,12 +531,10 @@
                         cell.dataset.r = r;
                         cell.dataset.c = c;
 
-                        // ゴール表示
                         if (r === this.goalPos.r && c === this.goalPos.c) {
                             cell.classList.add('goal');
                         }
 
-                        // タイル表示
                         const tileData = this.boardData[r][c];
                         if (tileData) {
                             const tile = document.createElement('div');
@@ -556,27 +542,20 @@
                             tile.dataset.r = r;
                             tile.dataset.c = c;
                             
-                            // ST3でカウントが1以上なら表示
                             if (this.currentStage === 3 && tileData.count > 0) {
                                 tile.textContent = tileData.count;
                             } else {
                                 tile.textContent = '';
                             }
                             
-                            // Pointer Events setup
                             tile.addEventListener('pointerdown', (e) => this.onPointerDown(e));
-                            
                             cell.appendChild(tile);
                         }
-
                         this.boardEl.appendChild(cell);
                     }
                 }
             }
 
-            /**
-             * ナビゲーションボタンの表示更新
-             */
             updateNavButtons() {
                 document.querySelectorAll('.nav-btn').forEach((btn, idx) => {
                     if (idx + 1 === this.currentStage) {
@@ -587,33 +566,20 @@
                 });
             }
 
-            // --- Game Logic ---
-
-            /**
-             * 移動可能判定
-             */
             isValidMove(fr, fc, toR, toC) {
-                // 範囲外
                 if (toR < 0 || toR >= this.boardSize || toC < 0 || toC >= this.boardSize) return false;
-                
-                // 距離が1以外（斜めや遠くはNG）
                 const dist = Math.abs(fr - toR) + Math.abs(fc - toC);
                 if (dist !== 1) return false;
 
                 const target = this.boardData[toR][toC];
                 const source = this.boardData[fr][fc];
 
-                // 移動先にタイルがあり、かつ色が違う場合のみOK
                 if (target && target.color !== source.color) {
                     return true;
                 }
-
                 return false;
             }
 
-            /**
-             * 手詰まり判定
-             */
             checkMovesAvailable() {
                 const size = this.boardSize;
                 const dirs = [[0, 1], [0, -1], [1, 0], [-1, 0]];
@@ -636,25 +602,15 @@
                 return false;
             }
 
-            /**
-             * 移動実行
-             */
             moveTile(fr, fc, toR, toC) {
-                // 履歴保存 (Deep Copy)
                 this.history.push(JSON.parse(JSON.stringify(this.boardData)));
                 this.undoBtn.disabled = false;
 
-                // 捕食カウント加算
                 this.boardData[fr][fc].count += 1;
-
-                // データ更新
                 this.boardData[toR][toC] = this.boardData[fr][fc];
                 this.boardData[fr][fc] = null;
 
-                // 再描画
                 this.renderBoard();
-
-                // 判定
                 this.checkStatus();
             }
 
@@ -663,12 +619,9 @@
                 this.boardData = this.history.pop();
                 if (this.history.length === 0) this.undoBtn.disabled = true;
                 this.renderBoard();
-                this.overlay.classList.remove('visible'); // ゲームオーバー等から復帰
+                this.overlay.classList.remove('visible');
             }
 
-            /**
-             * 勝利・敗北判定
-             */
             checkStatus() {
                 let tiles = [];
                 let tilePos = null;
@@ -682,18 +635,15 @@
                     }
                 }
 
-                // クリア判定
                 if (tiles.length === 1) {
                     if (tilePos.r === this.goalPos.r && tilePos.c === this.goalPos.c) {
                         this.showWin(tiles[0].count);
                     } else {
-                        // 1枚残ったがゴールではない -> 手詰まり扱い
                         this.showGameOver("Last tile is not on the Goal!");
                     }
                     return;
                 }
 
-                // 手詰まり判定
                 if (!this.checkMovesAvailable()) {
                     this.showGameOver("No more moves available!");
                 }
@@ -710,8 +660,6 @@
                 let msg = "Great Job!";
 
                 if (this.currentStage === 3) {
-                    // スコアは残ったタイルのcount
-                    // ハイスコア更新
                     const currentHigh = parseInt(localStorage.getItem('mono_ace_highscore') || 0);
                     let isNewRecord = false;
                     if (score > currentHigh) {
@@ -759,13 +707,9 @@
                 } else if (this.currentStage === 2) {
                     this.loadStage(3);
                 } else {
-                    // ST3リプレイ
                     this.loadStage(3);
                 }
             }
-
-
-            // --- Drag and Drop (Pointer Events) ---
 
             onPointerDown(e) {
                 const tileEl = e.currentTarget;
@@ -792,7 +736,7 @@
 
             onPointerMove(e) {
                 if (!this.isDragging || !this.dragTile) return;
-                e.preventDefault();
+                e.preventDefault(); // ここはドラッグ中のスクロールを防ぐために必要
                 
                 const cell = this.dragTile.parentElement;
                 const cellRect = cell.getBoundingClientRect();
